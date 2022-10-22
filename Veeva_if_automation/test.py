@@ -26,10 +26,11 @@ alpha = 'A'
 for col, val in enumerate(_header):
     _cell = ws.cell(1, col+1)
     _cell.value = val
-    _cell.fill = redFill
-    _cell.font = fontFill
+    # _cell.fill = redFill
+    # _cell.font = fontFill
     ws.column_dimensions[alpha].width = _widths[col]
     alpha = chr(ord(alpha) + 1)
 
 
-wb.save(filename=name)
+_file = wb.save(filename=name)
+print(_file)

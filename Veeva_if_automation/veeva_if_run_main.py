@@ -2,17 +2,19 @@ from datetime import datetime
 from http import client
 import boto3 as boto
 from openpyxl import Workbook
-from openpyxl.styles import Color, PatternFill, Font, Border
+from openpyxl.styles import PatternFill, Font
 import datetime
 
 
 # low level client representation
-client = boto.client('stepfunctions')
+_sfClient = boto.client('stepfunctions')
+_s3Client = boto3.client('s3')
+
 
 
 def getDateTime(arn):
 
-    response = client.list_executions(
+    response = _sfClient.list_executions(
         stateMachineArn=arn,
         # statusFilter='RUNNING'|'SUCCEEDED'|'FAILED'|'TIMED_OUT'|'ABORTED',
         # only want succeeded and failed onces
@@ -25,7 +27,7 @@ def getDateTime(arn):
     _executionArn = response['executions'][0]['executionArn']
 
     # Getting the reference to recent first execution of ith statemachine
-    _sfLast = client.describe_execution(
+    _sfLast = _sfClient.describe_execution(
         executionArn=_executionArn
     )
 
@@ -116,14 +118,13 @@ _sfs = ['VEEVA_PARAM',
         'VEEVA_CONF_HCP_STTS',
         'VEEVA_FCLTY_MR_INFRMTN_TRNSMSN',
         'VEEVA_PRMSN_SET_ASGN',
-        'SF_Job_Generic_Outbound_MediChannel_Saccess'
-        ]
+        'SF_Job_Generic_Outbound_MediChannel_Saccess']
 
 
 # workbook creation
 
-x = datetime.datetime.now()
-name = "VEEVA_IF_RUN_STATUS " + x.strftime('%d-%b-%Y') + '.xlsx'
+_date = datetime.datetime.now()
+name = "VEEVA_IF_RUN_STATUS " + _date.strftime('%d-%b-%Y') + '.xlsx'
 
 wb = Workbook()
 
@@ -160,7 +161,6 @@ for row, _sf in enumerate(_sfs):
     _stts_dict = getDateTime(_arn)
     ws.cell(row + 2, 2).value = _stts_dict['startDate']
     ws.cell(row + 2, 3).value = _stts_dict['endDate']
-    ws.cell(row + 2, 4).value = ""
     ws.cell(row + 2, 5).font = fontgreenFill
     if _stts_dict['status']:
         ws.cell(row + 2, 5).font = fontredFill
@@ -188,3 +188,11 @@ for row, _sf in enumerate(_sfs):
 
 
 wb.save(filename=name)
+
+
+# uploading file to s3
+bucket = 'az-jp-sharing-hub-prd'
+archive_file_path = "test/outbound_may_be/archive"
+
+
+_s3Client.upload_file(name, bucket, archive_file_path + '/' + name)
