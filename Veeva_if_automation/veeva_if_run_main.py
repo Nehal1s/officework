@@ -1,5 +1,4 @@
 from datetime import datetime
-from http import client
 import boto3 as boto
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font
@@ -8,8 +7,9 @@ import datetime
 
 # low level client representation
 _sfClient = boto.client('stepfunctions')
-_s3Client = boto3.client('s3')
+_s3Client = boto.client('s3')
 
+# to get the start and end time and date
 
 
 def getDateTime(arn):
@@ -19,7 +19,7 @@ def getDateTime(arn):
         # statusFilter='RUNNING'|'SUCCEEDED'|'FAILED'|'TIMED_OUT'|'ABORTED',
         # only want succeeded and failed onces
         statusFilter='SUCCEEDED' | 'FAILED',
-        # Just want the first recent execution
+        # Just want the latest execution
         maxResults=1,
         # nextToken='string'
     )
@@ -32,8 +32,12 @@ def getDateTime(arn):
     )
 
     _status = _sfLast['status']
-    _startDate = _sfLast['startDate']
-    _endDate = _sfLast['stopDate']
+
+    # Formating datetime to time
+    _startDate = datetime.datetime.strptime(
+        _sfLast['startDate'], "%d%b%Y%H%M%S").time().strftime("%H:%M:%S %p")
+    _endDate = datetime.datetime.strptime(
+        _sfLast['endDate'], "%d%b%Y%H%M%S").time().strftime("%H:%M:%S %p")
     return {
         'status': _status,
         'startDate': _startDate,
@@ -44,6 +48,10 @@ def getDateTime(arn):
 # Arn prefix
 _devArnPrefix = 'arn:aws:states:ap-northeast-1:267385292102:stateMachine:'
 _ppdArnPrefix = 'arn:aws:states:ap-northeast-1:408643729837:stateMachine:'
+
+# just the arn of ppd, dev and prod will only change
+# like _ppdArnPrefix + _sfs[i] = ith sf's Arn
+#
 
 
 # veeva_jobs
@@ -159,31 +167,32 @@ for col, val in enumerate(_header):
 for row, _sf in enumerate(_sfs):
     _arn = _ppdArnPrefix + _sf
     _stts_dict = getDateTime(_arn)
+    if _stts_dict['status'] == "FAILED":
+        ws.cell(row + 2, 5).font = fontredFill
+        break
     ws.cell(row + 2, 2).value = _stts_dict['startDate']
     ws.cell(row + 2, 3).value = _stts_dict['endDate']
     ws.cell(row + 2, 5).font = fontgreenFill
-    if _stts_dict['status']:
-        ws.cell(row + 2, 5).font = fontredFill
     ws.cell(row + 2, 5).value = _stts_dict['status']
 
     # Getting all execution of ith state machine
 
     # {
-    #     'executionArn': 'string',
-    #     'stateMachineArn': 'string',
-    #     'name': 'string',
+    #     'executionArn': '_executionArn',
+    #     'stateMachineArn': _devPrefix + _sfs[i],
+    #     'name': _sfs[i],
     #     'status': 'RUNNING'|'SUCCEEDED'|'FAILED'|'TIMED_OUT'|'ABORTED',
     #     'startDate': datetime(2015, 1, 1),
     #     'stopDate': datetime(2015, 1, 1),
-    #     'input': 'string',
+    #     'input': Payloads[i],
     #     'inputDetails': {
-    #         'included': True|False
+    #         'included': True
     #     },
-    #     'output': 'string',
+    #     'output': _oPayloads[i],
     #     'outputDetails': {
     #         'included': True|False
     #     },
-    #     'traceHeader': 'string'
+    #     'traceHeader': 'None'
     # }
 
 
@@ -191,7 +200,7 @@ wb.save(filename=name)
 
 
 # uploading file to s3
-bucket = 'az-jp-sharing-hub-prd'
+bucket = 'az-jp-sharing-hub-ppd'
 archive_file_path = "test/outbound_may_be/archive"
 
 
